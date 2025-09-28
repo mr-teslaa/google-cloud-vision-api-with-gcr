@@ -1,5 +1,4 @@
 import io
-import pytest
 from unittest.mock import patch
 
 
@@ -7,7 +6,7 @@ from unittest.mock import patch
 # Happy path: valid JPEG image
 # ---------------------------
 def test_extract_text_success(client):
-    # Use a small sample JPEG (can be any small valid bytes)
+    # Use a small sample JPEG (valid JPEG header)
     sample_image = io.BytesIO(b"\xff\xd8\xff\xdb\x00C\x00")
     sample_image.name = "test.jpg"
 
@@ -20,7 +19,7 @@ def test_extract_text_success(client):
         }
 
         response = client.post(
-            "/extract-text",
+            "/api/extract-text",  # ✅ corrected path
             data={"image": (sample_image, "test.jpg")},
             content_type="multipart/form-data",
         )
@@ -36,7 +35,9 @@ def test_extract_text_success(client):
 # Edge cases / validation
 # ---------------------------
 def test_no_file_uploaded(client):
-    response = client.post("/extract-text", data={}, content_type="multipart/form-data")
+    response = client.post(
+        "/api/extract-text", data={}, content_type="multipart/form-data"
+    )
     data = response.get_json()
     assert response.status_code == 400
     assert data["success"] is False
@@ -47,7 +48,7 @@ def test_empty_file(client):
     empty_file.name = "empty.jpg"
 
     response = client.post(
-        "/extract-text",
+        "/api/extract-text",
         data={"image": (empty_file, "empty.jpg")},
         content_type="multipart/form-data",
     )
@@ -61,7 +62,7 @@ def test_wrong_extension(client):
     fake_file.name = "file.png"
 
     response = client.post(
-        "/extract-text",
+        "/api/extract-text",
         data={"image": (fake_file, "file.png")},
         content_type="multipart/form-data",
     )
@@ -75,7 +76,7 @@ def test_wrong_mime_type(client):
     fake_file.name = "file.jpg"
 
     response = client.post(
-        "/extract-text",
+        "/api/extract-text",
         data={"image": (fake_file, "file.jpg")},
         content_type="application/json",  # Wrong content type
     )
@@ -88,7 +89,7 @@ def test_wrong_mime_type(client):
 # Health check
 # ---------------------------
 def test_health_check(client):
-    response = client.get("/health")
+    response = client.get("/api/health")  # ✅ corrected path
     data = response.get_json()
     assert response.status_code == 200
     assert data["status"] == "healthy"
@@ -104,7 +105,7 @@ def test_ocr_service_runtime_error(client):
     with patch("app.services.ocr_service.OCRService.extract_text") as mock_ocr:
         mock_ocr.side_effect = RuntimeError("Simulated Vision API error")
         response = client.post(
-            "/extract-text",
+            "/api/extract-text",  # ✅ corrected path
             data={"image": (sample_image, "test.jpg")},
             content_type="multipart/form-data",
         )

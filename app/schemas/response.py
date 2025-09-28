@@ -1,5 +1,19 @@
 import json
 from flask import Response
+from flask_restx import fields
+
+
+def register_output_schemas(api):
+    OCROutputSchema = api.model(
+        "OCROutput",
+        {
+            "success": fields.Boolean(required=True, description="Request status"),
+            "text": fields.String(description="Extracted text from image"),
+            "confidence": fields.Float(description="Average OCR confidence"),
+            "processing_time_ms": fields.Integer(description="Processing time in ms"),
+        },
+    )
+    return OCROutputSchema
 
 
 def success_response(data: dict, status: int = 200) -> Response:

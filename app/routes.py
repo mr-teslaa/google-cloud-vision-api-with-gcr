@@ -1,13 +1,38 @@
-from flask import request, jsonify, Response
+from flask import request
+from flask_restx import Namespace, Resource, reqparse
 from .services.ocr_service import OCRService
 from .utils.file_utils import allowed_file, get_secure_filename
-from .schemas.response import success_response, error_response
+from .schemas.input import register_input_schemas
+from .schemas.response import register_output_schemas, success_response, error_response
+
+# Create namespace
+ns = Namespace("OCR", description="OCR operations")
+
+# Register models with namespace
+OCRInputSchema = register_input_schemas(ns)
+OCROutputSchema = register_output_schemas(ns)
 
 
-def register_routes(app):
-    @app.route("/extract-text", methods=["POST"])
-    def extract_text():
-        # Ensure correct content type
+# Parser for multipart/form-data
+upload_parser = reqparse.RequestParser()
+upload_parser.add_argument(
+    "image",
+    location="files",
+    type="FileStorage",
+    required=True,
+    help="JPEG image file to extract text from",
+)
+
+
+@ns.route("/extract-text")
+class ExtractText(Resource):
+    @ns.expect(upload_parser)
+    @ns.response(200, "Success", OCROutputSchema)
+    @ns.response(400, "Bad Request")
+    @ns.response(415, "Unsupported Media Type")
+    @ns.response(500, "Internal Server Error")
+    def post(self):
+        """Extract text from uploaded JPG image"""
         if not request.content_type.startswith("multipart/form-data"):
             return error_response(
                 "Invalid request type. Must be multipart/form-data", 415
@@ -18,31 +43,26 @@ def register_routes(app):
 
         file = request.files["image"]
 
-        # Check if file is selected
         if file.filename == "":
             return error_response("No file selected", 400)
 
-        # Validate file extension
         if not allowed_file(file.filename):
             return error_response(
                 "Invalid file type. Only JPG/JPEG files are allowed.", 400
             )
 
-        # Validate MIME type
         if file.mimetype not in ["image/jpeg", "image/jpg"]:
             return error_response(
                 f"Invalid MIME type: {file.mimetype}. Only JPEG images are allowed.",
                 400,
             )
 
-        # Validate file is not empty
         content = file.read()
         if not content or len(content) == 0:
             return error_response("Uploaded file is empty or unreadable.", 400)
 
         filename = get_secure_filename(file.filename)
 
-        # Process OCR
         try:
             ocr = OCRService()
             result = ocr.extract_text(content)
@@ -54,6 +74,9 @@ def register_routes(app):
         except Exception as e:
             return error_response(f"Unexpected error: {str(e)}", 500)
 
-    @app.route("/health", methods=["GET"])
-    def health():
-        return jsonify({"status": "healthy"}), 200
+
+@ns.route("/health")
+class Health(Resource):
+    def get(self):
+        """Health check endpoint"""
+        return {"status": "healthy"}, 200

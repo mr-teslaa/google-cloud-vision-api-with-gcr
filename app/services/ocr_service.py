@@ -14,25 +14,20 @@ class OCRService:
         """Extract text from image bytes with robust error handling."""
         start_time = time.time()
 
-        # Check for empty file
         if not content or len(content) == 0:
             raise ValueError("Uploaded file is empty or unreadable.")
 
-        # Attempt to detect text
         try:
             image = vision.Image(content=content)
             response = self.client.document_text_detection(image=image)
         except GoogleAPIError as e:
-            # Catch Vision API-specific errors (quota, network, etc.)
             raise RuntimeError(f"Google Vision API error: {str(e)}")
         except Exception as e:
-            # Catch other unexpected errors
             raise RuntimeError(f"OCR failed: {str(e)}")
 
         processing_time_ms = int((time.time() - start_time) * 1000)
 
         if response.error.message:
-            # Vision API returned an error
             raise RuntimeError(f"Vision API error: {response.error.message}")
 
         text = (
@@ -41,7 +36,6 @@ class OCRService:
             else ""
         )
 
-        # Compute confidence
         total_conf, count = 0.0, 0
         for page in response.full_text_annotation.pages:
             for block in page.blocks:
