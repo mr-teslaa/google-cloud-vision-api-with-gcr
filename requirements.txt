@@ -1,0 +1,5 @@
+Flask==2.3.3
+google-cloud-vision==3.10.2
+werkzeug==2.3.7
+python-dotenv==1.1.1
+pytest==8.4.2

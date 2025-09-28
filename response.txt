@@ -1,0 +1,277 @@
+-------------------------------------------------
+FILE: run.py
+-------------------------------------------------
+from app import create_app
+
+app = create_app()
+
+if __name__ == "__main__":
+    app.run(debug=True, host="0.0.0.0", port=int(app.config["PORT"]))
+
+
+
+-------------------------------------------------
+FILE: app\__init__.py
+-------------------------------------------------
+import os
+from flask import Flask
+from .config import Config
+from .routes import register_routes
+from .utils.error_handler import register_error_handlers
+
+
+def create_app():
+    # Verify that the Google application credentials environment variable is set
+    Config.validate_credentials()
+
+    app = Flask(__name__)
+    app.config.from_object(Config)
+
+    # Register routes
+    register_routes(app)
+
+    # Register global error handlers
+    register_error_handlers(app)
+
+    return app
+
+
+
+-------------------------------------------------
+FILE: app\config.py
+-------------------------------------------------
+import os
+from dotenv import load_dotenv, find_dotenv
+
+load_dotenv(find_dotenv())
+
+
+class Config:
+    PORT = os.getenv("PORT", 5000)
+    MAX_CONTENT_LENGTH = 10 * 1024 * 1024  # 10 MB
+    ALLOWED_EXTENSIONS = {"jpg", "jpeg"}
+    GOOGLE_CREDENTIALS = os.getenv("GOOGLE_APPLICATION_CREDENTIALS", "service.json")
+
+    @classmethod
+    def validate_credentials(cls):
+        """Validate that the Google credentials file exists and is readable."""
+        creds_path = cls.GOOGLE_CREDENTIALS
+
+        if not creds_path:
+            raise RuntimeError(
+                "❌ GOOGLE_APPLICATION_CREDENTIALS not set in environment or .env file"
+            )
+
+        if not os.path.isfile(creds_path):
+            raise RuntimeError(
+                f"❌ Google credentials file not found at '{creds_path}'. "
+                "Check your .env file or default path."
+            )
+
+        if not creds_path.endswith(".json"):
+            raise RuntimeError(
+                f"❌ Invalid credentials file: {creds_path}. Must be a .json file."
+            )
+
+        # If valid, export for Google SDK
+        os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = creds_path
+
+
+
+-------------------------------------------------
+FILE: app\routes.py
+-------------------------------------------------
+from flask import request, jsonify, Response
+from .services.ocr_service import OCRService
+from .utils.file_utils import allowed_file, get_secure_filename
+from .schemas.response import success_response, error_response
+
+
+def register_routes(app):
+    @app.route("/extract-text", methods=["POST"])
+    def extract_text():
+        # Ensure correct content type
+        if not request.content_type.startswith("multipart/form-data"):
+            return error_response(
+                "Invalid request type. Must be multipart/form-data", 415
+            )
+
+        if "image" not in request.files:
+            return error_response("No image file provided in the request", 400)
+
+        file = request.files["image"]
+
+        # Check if file is selected
+        if file.filename == "":
+            return error_response("No file selected", 400)
+
+        # Validate file extension
+        if not allowed_file(file.filename):
+            return error_response(
+                "Invalid file type. Only JPG/JPEG files are allowed.", 400
+            )
+
+        # Validate MIME type
+        if file.mimetype not in ["image/jpeg", "image/jpg"]:
+            return error_response(
+                f"Invalid MIME type: {file.mimetype}. Only JPEG images are allowed.",
+                400,
+            )
+
+        # Validate file is not empty
+        content = file.read()
+        if not content or len(content) == 0:
+            return error_response("Uploaded file is empty or unreadable.", 400)
+
+        filename = get_secure_filename(file.filename)
+
+        # Process OCR
+        try:
+            ocr = OCRService()
+            result = ocr.extract_text(content)
+            return success_response(result)
+        except ValueError as ve:
+            return error_response(str(ve), 400)
+        except RuntimeError as re:
+            return error_response(str(re), 500)
+        except Exception as e:
+            return error_response(f"Unexpected error: {str(e)}", 500)
+
+    @app.route("/health", methods=["GET"])
+    def health():
+        return jsonify({"status": "healthy"}), 200
+
+
+
+-------------------------------------------------
+FILE: app\schemas\response.py
+-------------------------------------------------
+import json
+from flask import Response
+
+
+def success_response(data: dict, status: int = 200) -> Response:
+    return Response(
+        json.dumps({"success": True, **data}, ensure_ascii=False),
+        status=status,
+        mimetype="application/json; charset=utf-8",
+    )
+
+
+def error_response(message: str, status: int) -> Response:
+    return Response(
+        json.dumps({"success": False, "error": message}, ensure_ascii=False),
+        status=status,
+        mimetype="application/json; charset=utf-8",
+    )
+
+
+
+-------------------------------------------------
+FILE: app\services\ocr_service.py
+-------------------------------------------------
+import time
+from flask import current_app
+from google.cloud import vision
+from google.api_core.exceptions import GoogleAPIError
+
+
+class OCRService:
+    def __init__(self):
+        if "GOOGLE_CREDENTIALS" not in current_app.config:
+            raise RuntimeError("Google credentials not configured")
+        self.client = vision.ImageAnnotatorClient()
+
+    def extract_text(self, content: bytes) -> dict:
+        """Extract text from image bytes with robust error handling."""
+        start_time = time.time()
+
+        # Check for empty file
+        if not content or len(content) == 0:
+            raise ValueError("Uploaded file is empty or unreadable.")
+
+        # Attempt to detect text
+        try:
+            image = vision.Image(content=content)
+            response = self.client.document_text_detection(image=image)
+        except GoogleAPIError as e:
+            # Catch Vision API-specific errors (quota, network, etc.)
+            raise RuntimeError(f"Google Vision API error: {str(e)}")
+        except Exception as e:
+            # Catch other unexpected errors
+            raise RuntimeError(f"OCR failed: {str(e)}")
+
+        processing_time_ms = int((time.time() - start_time) * 1000)
+
+        if response.error.message:
+            # Vision API returned an error
+            raise RuntimeError(f"Vision API error: {response.error.message}")
+
+        text = (
+            response.full_text_annotation.text
+            if response.full_text_annotation.text
+            else ""
+        )
+
+        # Compute confidence
+        total_conf, count = 0.0, 0
+        for page in response.full_text_annotation.pages:
+            for block in page.blocks:
+                for paragraph in block.paragraphs:
+                    for word in paragraph.words:
+                        if word.confidence:
+                            total_conf += word.confidence
+                            count += 1
+
+        confidence = round(total_conf / count, 2) if count > 0 else 0.0
+
+        return {
+            "text": text,
+            "confidence": confidence,
+            "processing_time_ms": processing_time_ms,
+        }
+
+
+
+-------------------------------------------------
+FILE: app\utils\error_handler.py
+-------------------------------------------------
+from flask import jsonify
+
+
+def register_error_handlers(app):
+    @app.errorhandler(413)
+    def request_entity_too_large(e):
+        return jsonify({"success": False, "error": "File too large"}), 413
+
+    @app.errorhandler(404)
+    def not_found(e):
+        return jsonify({"success": False, "error": "Endpoint not found"}), 404
+
+    @app.errorhandler(500)
+    def internal_error(e):
+        return jsonify({"success": False, "error": "Internal server error"}), 500
+
+
+
+
+-------------------------------------------------
+FILE: app\utils\file_utils.py
+-------------------------------------------------
+from werkzeug.utils import secure_filename
+from flask import current_app
+
+
+def allowed_file(filename: str) -> bool:
+    """Check if file extension is allowed."""
+    return (
+        "." in filename
+        and filename.rsplit(".", 1)[1].lower()
+        in current_app.config["ALLOWED_EXTENSIONS"]
+    )
+
+
+def get_secure_filename(filename: str) -> str:
+    return secure_filename(filename)
+
+
