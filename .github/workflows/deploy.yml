@@ -35,7 +35,6 @@ jobs:
                     --platform=managed \
                     --region=${{ env.REGION }} \
                     --allow-unauthenticated \
-                    --set-env-vars "GOOGLE_APPLICATION_CREDENTIALS=${{ secrets.GCP_SA_KEY }}"
 
             - name: Get Cloud Run URL
               run: |
