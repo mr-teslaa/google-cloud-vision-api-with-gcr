@@ -28,7 +28,10 @@ jobs:
               uses: google-github-actions/setup-gcloud@v2
 
             - name: Build Docker Image
-              run: docker build -t ${{ env.IMAGE_NAME }}:latest .
+              run: |
+                  docker build \
+                    --build-arg GOOGLE_CREDENTIALS_JSON="${{ secrets.GCP_SA_KEY }}" \
+                    -t ${{ env.IMAGE_NAME }}:latest .
 
             - name: Automatic Tagging of Releases
               id: increment-git-tag

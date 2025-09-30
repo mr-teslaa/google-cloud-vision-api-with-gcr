@@ -1,31 +1,45 @@
 import os, json, tempfile
+from google.auth import default
 
 
 class Config:
-    GOOGLE_CREDENTIALS = os.getenv("GOOGLE_APPLICATION_CREDENTIALS", "service.json")
+    PORT = os.getenv("PORT", 5000)
+    MAX_CONTENT_LENGTH = 10 * 1024 * 1024  # 10 MB
+    ALLOWED_EXTENSIONS = {"jpg", "jpeg"}
+    GOOGLE_CREDENTIALS = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
 
     @classmethod
     def validate_credentials(cls):
         creds_path = cls.GOOGLE_CREDENTIALS
 
-        # If the env var itself contains JSON
-        if creds_path.strip().startswith("{"):
-            try:
-                json.loads(creds_path)  # validate JSON
-                tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".json")
-                tmp.write(creds_path.encode("utf-8"))
-                tmp.flush()
-                os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = tmp.name
-                return
-            except Exception as e:
-                raise RuntimeError("Invalid GOOGLE_APPLICATION_CREDENTIALS JSON") from e
+        if creds_path:
+            # If the env var itself contains JSON
+            if creds_path.strip().startswith("{"):
+                try:
+                    json.loads(creds_path)  # validate JSON
+                    tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".json")
+                    tmp.write(creds_path.encode("utf-8"))
+                    tmp.flush()
+                    os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = tmp.name
+                    return
+                except Exception as e:
+                    raise RuntimeError(
+                        "Invalid GOOGLE_APPLICATION_CREDENTIALS JSON"
+                    ) from e
 
-        # Otherwise, fall back to file path
-        if not os.path.isfile(creds_path):
-            raise RuntimeError(
-                f"❌ Google credentials file not found at '{creds_path}'"
-            )
-        os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = creds_path
+            # Otherwise, treat it as a file path
+            if not os.path.isfile(creds_path):
+                raise RuntimeError(
+                    f"❌ Google credentials file not found at '{creds_path}'"
+                )
+            os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = creds_path
+        else:
+            # ✅ In Cloud Run or GCP environments, rely on ADC
+            try:
+                creds, project = default()
+                print(f"✅ Loaded ADC credentials for project: {project}")
+            except Exception as e:
+                raise RuntimeError(f"❌ Could not load Google credentials: {e}")
 
 
 # import os
