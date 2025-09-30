@@ -5,4 +5,4 @@ docker run -p 5000:8080 --env-file .env -v O:\Projects\flexbone-ai-assignement-c
 
 
 
-gcloud run deploy flexbone-api --image=us-west2-docker.pkg.dev/YOUR_PROJECT_ID/images/google-cloud-vision-api-with-gcr:latest --platform=managed --region=us-west2 --allow-unauthenticated 
+gcloud run deploy google-cloud-vision-api-with-gcr --image=us-west2-docker.pkg.dev/useful-variety-472007-c0/images/google-cloud-vision-api-with-gcr:latest --platform=managed --region=us-central1 --allow-unauthenticated 

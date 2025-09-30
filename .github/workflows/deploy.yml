@@ -28,13 +28,16 @@ jobs:
             - name: Set up Cloud SDK
               uses: google-github-actions/setup-gcloud@v2
 
+
             - name: Deploy to Cloud Run
               run: |
+                  echo '${{ secrets.GCP_SA_KEY }}' > service.json
                   gcloud run deploy ${{ env.SERVICE_NAME }} \
                     --image=${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.IMAGE_NAME }}:latest \
                     --platform=managed \
                     --region=${{ env.REGION }} \
-                    --allow-unauthenticated
+                    --allow-unauthenticated \
+                    --set-env-vars "GOOGLE_APPLICATION_CREDENTIALS=/app/service.json"
 
             - name: Get Cloud Run URL
               run: |
