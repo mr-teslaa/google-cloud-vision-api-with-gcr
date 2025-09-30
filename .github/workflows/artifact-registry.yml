@@ -27,11 +27,15 @@ jobs:
             - name: Set up Cloud SDK
               uses: google-github-actions/setup-gcloud@v2
 
+            - name: Write Google Credentials to File
+              run: |
+                  echo '${{ secrets.GCP_SA_KEY }}' > /tmp/service.json
+
             - name: Build Docker Image
               run: |
                   docker build . \
-                    --build-arg GOOGLE_CREDENTIALS_JSON="${{ secrets.GCP_SA_KEY }}" \
-                    -t ${{ env.IMAGE_NAME }}:latest 
+                    --build-arg GOOGLE_CREDENTIALS_JSON_FILE="/tmp/service.json" \
+                    -t ${{ env.IMAGE_NAME }}:latest
 
             - name: Automatic Tagging of Releases
               id: increment-git-tag
