@@ -34,6 +34,8 @@ jobs:
             - name: Write Google Credentials to File
               run: |
                 echo '${{ secrets.GCP_SA_KEY }}' | jq -r '.' > /tmp/service.json
+                echo '------- Contents of /tmp/service.json -------'
+                cat /tmp/service.json
 
             - name: Build Docker Image
               run: |
