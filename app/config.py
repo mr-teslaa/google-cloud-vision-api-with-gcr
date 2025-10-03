@@ -1,79 +1,61 @@
-import os, json, tempfile
-from google.auth import default
+import os
+import json
+from dotenv import load_dotenv, find_dotenv
+
+load_dotenv(find_dotenv())
 
 
 class Config:
     PORT = os.getenv("PORT", 5000)
     MAX_CONTENT_LENGTH = 10 * 1024 * 1024  # 10 MB
     ALLOWED_EXTENSIONS = {"jpg", "jpeg"}
-    GOOGLE_CREDENTIALS = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
+    GOOGLE_CREDENTIALS = os.getenv("GOOGLE_APPLICATION_CREDENTIALS", "service.json")
 
     @classmethod
     def validate_credentials(cls):
+        """Ensure Google credentials are available either from env vars or file."""
+
+        # Case 1: full service.json path is provided (works like before)
         creds_path = cls.GOOGLE_CREDENTIALS
-
-        if creds_path:
-            # If the env var itself contains JSON
-            if creds_path.strip().startswith("{"):
-                try:
-                    json.loads(creds_path)  # validate JSON
-                    tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".json")
-                    tmp.write(creds_path.encode("utf-8"))
-                    tmp.flush()
-                    os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = tmp.name
-                    return
-                except Exception as e:
-                    raise RuntimeError(
-                        "Invalid GOOGLE_APPLICATION_CREDENTIALS JSON"
-                    ) from e
-
-            # Otherwise, treat it as a file path
-            if not os.path.isfile(creds_path):
-                raise RuntimeError(
-                    f"❌ Google credentials file not found at '{creds_path}'"
-                )
+        if os.path.isfile(creds_path):
             os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = creds_path
-        else:
-            # ✅ In Cloud Run or GCP environments, rely on ADC
-            try:
-                creds, project = default()
-                print(f"✅ Loaded ADC credentials for project: {project}")
-            except Exception as e:
-                raise RuntimeError(f"❌ Could not load Google credentials: {e}")
+            return
 
+        # Case 2: build JSON from env vars if file is missing
+        required_vars = [
+            "GOOGLE_TYPE",
+            "GOOGLE_PROJECT_ID",
+            "GOOGLE_PRIVATE_KEY_ID",
+            "GOOGLE_PRIVATE_KEY",
+            "GOOGLE_CLIENT_EMAIL",
+            "GOOGLE_CLIENT_ID",
+            "GOOGLE_CLIENT_X509_CERT_URL",
+        ]
+        missing = [v for v in required_vars if not os.getenv(v)]
+        if missing:
+            raise RuntimeError(
+                f"❌ Missing Google credential env vars: {', '.join(missing)} "
+                f"and no service.json found at {creds_path}"
+            )
 
-# import os
-# from dotenv import load_dotenv, find_dotenv
+        creds_dict = {
+            "type": os.getenv("GOOGLE_TYPE"),
+            "project_id": os.getenv("GOOGLE_PROJECT_ID"),
+            "private_key_id": os.getenv("GOOGLE_PRIVATE_KEY_ID"),
+            "private_key": os.getenv("GOOGLE_PRIVATE_KEY").replace("\\n", "\n"),
+            "client_email": os.getenv("GOOGLE_CLIENT_EMAIL"),
+            "client_id": os.getenv("GOOGLE_CLIENT_ID"),
+            "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+            "token_uri": "https://oauth2.googleapis.com/token",
+            "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+            "client_x509_cert_url": os.getenv("GOOGLE_CLIENT_X509_CERT_URL"),
+            "universe_domain": "googleapis.com",
+        }
 
-# load_dotenv(find_dotenv())
+        # 👉 Trick: write it once as if it were the real service.json
+        creds_file_path = "service.json"
+        with open(creds_file_path, "w", encoding="utf-8") as f:
+            json.dump(creds_dict, f, indent=2, ensure_ascii=False)
 
-
-# class Config:
-#     PORT = os.getenv("PORT", 5000)
-#     MAX_CONTENT_LENGTH = 10 * 1024 * 1024  # 10 MB
-#     ALLOWED_EXTENSIONS = {"jpg", "jpeg"}
-#     GOOGLE_CREDENTIALS = os.getenv("GOOGLE_APPLICATION_CREDENTIALS", "service.json")
-
-#     @classmethod
-#     def validate_credentials(cls):
-#         """Validate that the Google credentials file exists and is readable."""
-#         creds_path = cls.GOOGLE_CREDENTIALS
-
-#         if not creds_path:
-#             raise RuntimeError(
-#                 "❌ GOOGLE_APPLICATION_CREDENTIALS not set in environment or .env file"
-#             )
-
-#         if not os.path.isfile(creds_path):
-#             raise RuntimeError(
-#                 f"❌ Google credentials file not found at '{creds_path}'. "
-#                 "Check your .env file or default path."
-#             )
-
-#         if not creds_path.endswith(".json"):
-#             raise RuntimeError(
-#                 f"❌ Invalid credentials file: {creds_path}. Must be a .json file."
-#             )
-
-#         # If valid, export for Google SDK
-#         os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = creds_path
+        os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = creds_file_path
+        cls.GOOGLE_CREDENTIALS = creds_file_path

@@ -32,13 +32,6 @@ COPY --from=builder /install /usr/local
 # Copy app files
 COPY . .
 
-# Inject Google credentials (from build-arg)
-ARG GOOGLE_CREDENTIALS_JSON
-RUN echo "$GOOGLE_CREDENTIALS_JSON" > /app/service.json
-
-# Set environment variable for Google SDK
-ENV GOOGLE_APPLICATION_CREDENTIALS=/app/service.json
-
 # Expose port for Cloud Run
 EXPOSE 8080
 

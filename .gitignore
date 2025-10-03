@@ -13,6 +13,8 @@ instance/*
 __pycache__/
 *.py[cod]
 *$py.class
+temp/
+.json
 
 # C extensions
 *.so
