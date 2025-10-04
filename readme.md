@@ -360,15 +360,3 @@ samples/
 ├── blank_image.jpg
 ├── multiple_lines.jpg
 ```
-
----
-
-## 🏁 Conclusion
-
-This project demonstrates a **production-ready, scalable OCR API** built on **Google Cloud Run**.
-It meets and exceeds all requirements — including batch processing, rich metadata, structured error handling, and test automation.
-
----
-
-Would you like me to include a **“Dockerfile”** and **`requirements.txt`** section next (fully production-ready for Cloud Run)?
-I can generate those immediately for you.
