@@ -350,22 +350,6 @@ requirements.txt         # Python dependencies
 
 ---
 
-## 🧑‍🔬 Example Evaluation Checklist (Meets All Criteria)
-
-| Criteria                    | Implementation                 | Status |
-| --------------------------- | ------------------------------ | ------ |
-| Correct OCR text extraction | Google Vision API              | ✅      |
-| File validation & limits    | Enforced (10MB, allowed types) | ✅      |
-| Error handling              | 400/415/413/500 codes          | ✅      |
-| API Documentation           | Swagger `/docs` + README       | ✅      |
-| Cloud Run deployment        | Containerized + public URL     | ✅      |
-| Rate limiting               | 5 requests/min                 | ✅      |
-| Batch processing            | Supported                      | ✅      |
-| Unit tests                  | Comprehensive via pytest       | ✅      |
-| Logging & monitoring        | Configured                     | ✅      |
-
----
-
 ## 📸 Sample Test Images
 
 Add a few images in `/samples/` folder for testing:
