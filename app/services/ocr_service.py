@@ -1,4 +1,6 @@
-import time
+import time, re
+from io import BytesIO
+from PIL import Image
 from flask import current_app
 from google.cloud import vision
 from google.api_core.exceptions import GoogleAPIError
@@ -9,6 +11,27 @@ class OCRService:
         if "GOOGLE_CREDENTIALS" not in current_app.config:
             raise RuntimeError("Google credentials not configured")
         self.client = vision.ImageAnnotatorClient()
+
+    def clean_text(self, text: str) -> str:
+        """Normalize whitespace, remove artifacts."""
+        if not text:
+            return ""
+        # Replace multiple spaces/newlines with single space or newline
+        text = re.sub(r"\s+", " ", text)
+        text = text.strip()
+        return text
+
+    def extract_metadata(self, content: bytes) -> dict:
+        try:
+            with Image.open(BytesIO(content)) as img:
+                return {
+                    "format": img.format,
+                    "mode": img.mode,
+                    "width": img.width,
+                    "height": img.height,
+                }
+        except Exception:
+            return {}
 
     def extract_text(self, content: bytes) -> dict:
         """Extract text from image bytes with robust error handling."""
@@ -35,6 +58,9 @@ class OCRService:
             if response.full_text_annotation.text
             else ""
         )
+
+        # Clean up text
+        text = self.clean_text(text)
 
         total_conf, count = 0.0, 0
         for page in response.full_text_annotation.pages:

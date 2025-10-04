@@ -8,7 +8,9 @@ load_dotenv(find_dotenv())
 class Config:
     PORT = os.getenv("PORT", 5000)
     MAX_CONTENT_LENGTH = 10 * 1024 * 1024  # 10 MB
-    ALLOWED_EXTENSIONS = {"jpg", "jpeg"}
+    # ALLOWED_EXTENSIONS = {"jpg", "jpeg"}
+    ALLOWED_EXTENSIONS = {"jpg", "jpeg", "png", "gif", "webp"}
+
     GOOGLE_CREDENTIALS = os.getenv("GOOGLE_APPLICATION_CREDENTIALS", "service.json")
 
     @classmethod

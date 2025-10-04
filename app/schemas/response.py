@@ -11,6 +11,20 @@ def register_output_schemas(api):
             "text": fields.String(description="Extracted text from image"),
             "confidence": fields.Float(description="Average OCR confidence"),
             "processing_time_ms": fields.Integer(description="Processing time in ms"),
+            "metadata": fields.Nested(
+                api.model(
+                    "ImageMetadata",
+                    {
+                        "format": fields.String(
+                            description="Image format, e.g., JPEG, PNG"
+                        ),
+                        "mode": fields.String(description="Color mode, e.g., RGB, L"),
+                        "width": fields.Integer(description="Image width in pixels"),
+                        "height": fields.Integer(description="Image height in pixels"),
+                    },
+                ),
+                description="Extracted image metadata",
+            ),
         },
     )
     return OCROutputSchema
